@@ -1,6 +1,15 @@
 const SONGS_URL = "data/songs.json";
 const COUNTRIES_URL = "data/countries.json";
 
+const oneSignalAppId = window.MUSIC_EXPLORER_CONFIG?.oneSignalAppId ?? "";
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isStandalone =
+  window.navigator.standalone === true ||
+  window.matchMedia?.("(display-mode: standalone)").matches;
+const isIOSWithoutInstall = isIOS && !isStandalone;
+const pushSupported = "Notification" in window && "serviceWorker" in navigator;
+
 const SPOTIFY_LOGO_SVG = `<svg class="spotify-logo" viewBox="0 0 168 168" aria-hidden="true">
   <path fill="currentColor" d="M83.996.277C37.747.277.253 37.77.253 84.019c0 46.251 37.494 83.741 83.743 83.741 46.254 0 83.744-37.49 83.744-83.741 0-46.246-37.49-83.738-83.745-83.738zm38.404 120.78a5.217 5.217 0 01-7.18 1.73c-19.662-12.01-44.414-14.73-73.564-8.07a5.222 5.222 0 01-6.249-3.93 5.213 5.213 0 013.926-6.25c31.9-7.291 59.263-4.15 81.337 9.34 2.46 1.51 3.24 4.72 1.73 7.18zm10.25-22.805c-1.89 3.07-5.91 4.04-8.98 2.16-22.51-13.84-56.823-17.846-83.448-9.764-3.453 1.043-7.1-.903-8.148-4.35a6.538 6.538 0 014.354-8.143c30.413-9.228 68.222-4.758 94.072 11.127 3.07 1.89 4.04 5.91 2.15 8.97zm.88-23.744c-26.99-16.031-71.52-17.505-97.289-9.684-4.138 1.255-8.514-1.081-9.768-5.219a7.835 7.835 0 015.221-9.771c29.581-8.98 78.756-7.245 109.83 11.202a7.823 7.823 0 012.74 10.733c-2.2 3.722-7.02 4.949-10.73 2.739z"/>
 </svg>`;
@@ -58,7 +67,109 @@ function renderEntry(card, entry) {
       target="_blank"
       rel="noopener"
     >${SPOTIFY_LOGO_SVG}Open in Spotify</a>
+    <div id="notify-slot" class="notify-slot"></div>
   `;
+}
+
+function renderNotifySlot(state) {
+  const slot = $("notify-slot");
+  if (!slot) return;
+  if (state.kind === "install-ios") {
+    slot.innerHTML = `
+      <div class="install-hint" role="note">
+        <strong>📲 Want a daily reminder?</strong>
+        <span>Tap <em>Share</em> → <em>Add to Home Screen</em>, then open from your home screen to enable notifications.</span>
+      </div>`;
+    return;
+  }
+  if (state.kind === "unsupported") {
+    slot.innerHTML = `
+      <p class="notify-note">This browser doesn't support daily notifications.</p>`;
+    return;
+  }
+  if (state.kind === "denied") {
+    slot.innerHTML = `
+      <p class="notify-note">🔕 Notifications blocked — re-enable in your browser settings.</p>`;
+    return;
+  }
+  if (state.kind === "subscribed") {
+    slot.innerHTML = `
+      <button class="notify-button is-on" type="button" id="notify-toggle">
+        ✓ Daily notifications on
+      </button>`;
+    $("notify-toggle").addEventListener("click", () => toggleSubscription(false));
+    return;
+  }
+  slot.innerHTML = `
+    <button class="notify-button" type="button" id="notify-toggle">
+      🔔 Notify me daily
+    </button>`;
+  $("notify-toggle").addEventListener("click", () => toggleSubscription(true));
+}
+
+async function toggleSubscription(turnOn) {
+  if (!window.OneSignal) return;
+  try {
+    if (turnOn) {
+      await window.OneSignal.Notifications.requestPermission();
+      const granted = window.OneSignal.Notifications.permission;
+      if (!granted) {
+        renderNotifySlot({ kind: "denied" });
+        return;
+      }
+      await window.OneSignal.User.PushSubscription.optIn();
+      renderNotifySlot({ kind: "subscribed" });
+    } else {
+      await window.OneSignal.User.PushSubscription.optOut();
+      renderNotifySlot({ kind: "default" });
+    }
+  } catch (err) {
+    console.error("Notification toggle failed:", err);
+  }
+}
+
+async function initNotifications() {
+  if (isIOSWithoutInstall) {
+    renderNotifySlot({ kind: "install-ios" });
+    return;
+  }
+  if (!pushSupported) {
+    renderNotifySlot({ kind: "unsupported" });
+    return;
+  }
+  if (!oneSignalAppId) {
+    return;
+  }
+  if (Notification.permission === "denied") {
+    renderNotifySlot({ kind: "denied" });
+    return;
+  }
+
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push(async (OneSignal) => {
+    await OneSignal.init({
+      appId: oneSignalAppId,
+      allowLocalhostAsSecureOrigin: true,
+      serviceWorkerPath: "OneSignalSDKWorker.js",
+    });
+
+    const refresh = () => {
+      const subscribed = OneSignal.User.PushSubscription.optedIn;
+      const denied = OneSignal.Notifications.permission === false &&
+        Notification.permission === "denied";
+      if (denied) {
+        renderNotifySlot({ kind: "denied" });
+      } else if (subscribed) {
+        renderNotifySlot({ kind: "subscribed" });
+      } else {
+        renderNotifySlot({ kind: "default" });
+      }
+    };
+
+    refresh();
+    OneSignal.User.PushSubscription.addEventListener("change", refresh);
+    OneSignal.Notifications.addEventListener("permissionChange", refresh);
+  });
 }
 
 function renderHistory(list, entries) {
@@ -115,6 +226,7 @@ async function init() {
     } else {
       renderEntry(card, entries.at(-1));
       renderHistory(historyList, entries);
+      initNotifications();
     }
     renderProgress(progress, entries, countries.length);
   } catch (err) {

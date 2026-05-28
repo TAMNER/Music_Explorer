@@ -25,7 +25,19 @@ The script uses the Client Credentials flow — no user OAuth required.
 
 Settings → Pages → Source: **GitHub Actions**.
 
-### 3. Generate the initial sequence (one-time)
+### 3. OneSignal (for daily push notifications)
+
+1. Create a free account at <https://onesignal.com> and add a new **Web** app.
+2. Enter the Pages URL as the site URL; upload an icon (use `icons/icon-512.png`).
+3. From the OneSignal app's *Settings → Keys & IDs*, copy:
+   - **App ID** → repo variable `ONESIGNAL_APP_ID`
+   - **REST API Key** → repo secret `ONESIGNAL_REST_API_KEY`
+4. Add a repo variable `SITE_URL` = your Pages URL (e.g. `https://USER.github.io/music_explorer/`).
+5. Paste the App ID into `config.js` (`oneSignalAppId`) and commit, so the frontend can initialize the SDK.
+
+On iOS, the site must be installed to the home screen before push works — the page shows that hint automatically to iPhone visitors.
+
+### 4. Generate the initial sequence (one-time)
 
 ```sh
 node scripts/generate-sequence.mjs
@@ -35,7 +47,18 @@ git commit -m "Bootstrap country sequence"
 
 A custom integer seed can be passed: `node scripts/generate-sequence.mjs 12345`.
 
-### 4. Run the fetcher locally (optional)
+### 5. Regenerate icons (only when changing the source)
+
+Edit `icons/icon.svg`, then:
+
+```sh
+npm install
+npm run icons
+```
+
+This rasterizes the SVG into all required PNG sizes (committed to the repo).
+
+### 6. Run the fetcher locally (optional)
 
 ```sh
 export SPOTIFY_CLIENT_ID=...
@@ -49,14 +72,20 @@ To backfill for a specific UTC date: `FORCE_DATE=2026-05-29 node scripts/fetch-d
 
 ```
 index.html, styles.css, app.js     Static frontend
+config.js                          Public client config (OneSignal App ID)
+manifest.webmanifest               PWA manifest
+OneSignalSDKWorker.js              Service worker (push + PWA shell)
+icons/                             App icons (SVG source + generated PNGs)
 data/countries.json                195 UN countries (iso, name, flag)
 data/country-seeds.json            Curated artist seeds per country
 data/sequence.json                 Shuffled order (the "without replacement" list)
 data/songs.json                    Append-only history of daily picks
 scripts/generate-sequence.mjs      Bootstrap / regenerate the shuffle
 scripts/fetch-daily-song.mjs       Daily worker (called by the Action)
+scripts/send-notification.mjs      OneSignal notification step
+scripts/generate-icons.mjs         SVG → PNG icon rasterizer
 scripts/lib/prng.mjs               Seeded PRNG + Fisher-Yates shuffle
-.github/workflows/daily-song.yml   Scheduled fetch
+.github/workflows/daily-song.yml   Scheduled fetch + notification
 .github/workflows/deploy.yml       Pages deploy
 ```
 

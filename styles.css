@@ -165,6 +165,65 @@ main {
   height: 18px;
 }
 
+.notify-slot {
+  margin-top: 0.25rem;
+}
+
+.notify-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  font: inherit;
+  font-weight: 500;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.notify-button:hover,
+.notify-button:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.25);
+  outline: none;
+}
+
+.notify-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.35);
+}
+
+.notify-button.is-on {
+  background: rgba(29, 185, 84, 0.12);
+  border-color: rgba(29, 185, 84, 0.4);
+  color: var(--accent-hover);
+}
+
+.notify-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.install-hint {
+  background: rgba(29, 185, 84, 0.08);
+  border: 1px solid rgba(29, 185, 84, 0.35);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.install-hint em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--fg);
+}
+
 .history {
   margin-top: 2rem;
   background: var(--bg-elev);

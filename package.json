@@ -1,0 +1,15 @@
+{
+  "name": "music-explorer",
+  "version": "1.0.0",
+  "description": "A song from a new country, every day.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "sequence": "node scripts/generate-sequence.mjs",
+    "fetch": "node scripts/fetch-daily-song.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5"
+  }
+}
