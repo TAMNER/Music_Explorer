@@ -24,14 +24,19 @@
   </head>
   <body>
     <header>
-      <h1>Music Explorer</h1>
-      <p class="tagline">A song from a new country, every day.</p>
+      <div class="brand">
+        <h1>Music Explorer</h1>
+        <p class="tagline">A song from a new country, every day.</p>
+      </div>
+      <div id="auth-slot" class="auth-slot"></div>
     </header>
 
     <main id="main">
       <section class="card" id="card" aria-live="polite" aria-busy="true">
         <p class="status" id="status">Loading today's song&hellip;</p>
       </section>
+
+      <section class="bio" id="bio" hidden aria-label="About this song"></section>
 
       <details class="history">
         <summary>Previous days</summary>
@@ -52,6 +57,6 @@
       </p>
     </footer>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>

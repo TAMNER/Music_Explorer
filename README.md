@@ -37,7 +37,16 @@ Settings → Pages → Source: **GitHub Actions**.
 
 On iOS, the site must be installed to the home screen before push works — the page shows that hint automatically to iPhone visitors.
 
-### 4. Generate the initial sequence (one-time)
+### 4. Supabase (accounts + saved favorites)
+
+1. Create a project at <https://supabase.com>.
+2. In the SQL editor, run `db/schema.sql` to create tables and row-level security policies.
+3. In *Authentication → Providers → Spotify*, enable the provider and paste the same `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` you used above. Copy the OAuth redirect URL Supabase shows and add it to your Spotify app's **Redirect URIs** list.
+4. Copy the project **URL** and **anon public key** from *Settings → API*, paste them into `config.js`.
+
+Email/password sign-in works out of the box. Email confirmation can be toggled in *Authentication → Settings*.
+
+### 5. Generate the initial sequence (one-time)
 
 ```sh
 node scripts/generate-sequence.mjs
@@ -47,7 +56,7 @@ git commit -m "Bootstrap country sequence"
 
 A custom integer seed can be passed: `node scripts/generate-sequence.mjs 12345`.
 
-### 5. Regenerate icons (only when changing the source)
+### 6. Regenerate icons (only when changing the source)
 
 Edit `icons/icon.svg`, then:
 
@@ -58,7 +67,7 @@ npm run icons
 
 This rasterizes the SVG into all required PNG sizes (committed to the repo).
 
-### 6. Run the fetcher locally (optional)
+### 7. Run the fetcher locally (optional)
 
 ```sh
 export SPOTIFY_CLIENT_ID=...
@@ -71,17 +80,23 @@ To backfill for a specific UTC date: `FORCE_DATE=2026-05-29 node scripts/fetch-d
 ## Repository layout
 
 ```
-index.html, styles.css, app.js     Static frontend
-config.js                          Public client config (OneSignal App ID)
+index.html, styles.css, app.js     Static frontend (ES module)
+config.js                          Public client config (OneSignal + Supabase keys)
 manifest.webmanifest               PWA manifest
 OneSignalSDKWorker.js              Service worker (push + PWA shell)
+lib/supabase.js                    Supabase client + auth helpers + engagement read/write
+lib/auth-ui.js                     Sign in dropdown (Spotify OAuth + email)
+lib/embed.js                       Spotify Embed IFrame API wrapper
+lib/bio.js                         Wikipedia bio card rendering
 icons/                             App icons (SVG source + generated PNGs)
 data/countries.json                195 UN countries (iso, name, flag)
 data/country-seeds.json            Curated artist seeds per country
 data/sequence.json                 Shuffled order (the "without replacement" list)
-data/songs.json                    Append-only history of daily picks
+data/songs.json                    Append-only history of daily picks (now includes bio)
+db/schema.sql                      Supabase tables + row-level security policies
 scripts/generate-sequence.mjs      Bootstrap / regenerate the shuffle
 scripts/fetch-daily-song.mjs       Daily worker (called by the Action)
+scripts/fetch-bio.mjs              Wikipedia bio lookup (used by daily worker)
 scripts/send-notification.mjs      OneSignal notification step
 scripts/generate-icons.mjs         SVG → PNG icon rasterizer
 scripts/lib/prng.mjs               Seeded PRNG + Fisher-Yates shuffle

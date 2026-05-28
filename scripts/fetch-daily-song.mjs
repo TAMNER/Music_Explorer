@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { mulberry32, shuffle, hashString } from "./lib/prng.mjs";
+import { fetchBio } from "./fetch-bio.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -211,6 +212,9 @@ async function main() {
     throw new Error(`No track found for ${iso} (${country.name})`);
   }
 
+  const primaryArtist = track.artists?.[0]?.name ?? "";
+  const bio = await fetchBio(primaryArtist, track.name);
+
   const entry = {
     day,
     date,
@@ -225,6 +229,7 @@ async function main() {
       spotifyUrl: track.external_urls?.spotify ?? `https://open.spotify.com/track/${track.id}`,
       albumImage: track.album?.images?.[0]?.url ?? "",
     },
+    bio,
   };
 
   songs.push(entry);

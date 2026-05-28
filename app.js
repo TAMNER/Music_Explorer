@@ -1,3 +1,14 @@
+import { mountAuthUI } from "./lib/auth-ui.js";
+import { createPlayer } from "./lib/embed.js";
+import { renderBio } from "./lib/bio.js";
+import {
+  getSession,
+  onAuthChange,
+  recordEngagement,
+  removeEngagement,
+  isFavorited,
+} from "./lib/supabase.js";
+
 const SONGS_URL = "data/songs.json";
 const COUNTRIES_URL = "data/countries.json";
 
@@ -42,33 +53,105 @@ function renderEmpty(card) {
   `;
 }
 
+let currentEntry = null;
+let favorited = false;
+
 function renderEntry(card, entry) {
+  currentEntry = entry;
   card.removeAttribute("aria-busy");
   const { country, flag, day, date, track } = entry;
-  const albumImg = track.albumImage
-    ? `<img class="album-art" src="${escapeHTML(track.albumImage)}" alt="Album art for ${escapeHTML(track.name)} by ${escapeHTML(track.artist)}" loading="lazy" />`
-    : "";
   card.innerHTML = `
     <div class="country-row">
       <span class="country-flag" aria-hidden="true">${escapeHTML(flag)}</span>
       <h2 class="country-name">${escapeHTML(country)}</h2>
       <span class="day-label">Day ${day} · ${escapeHTML(formatDate(date))}</span>
     </div>
-    <div class="track">
-      ${albumImg}
-      <div class="track-info">
-        <p class="track-name">${escapeHTML(track.name)}</p>
-        <p class="track-artist">${escapeHTML(track.artist)}</p>
+    <div class="track-meta">
+      <p class="track-name">${escapeHTML(track.name)}</p>
+      <p class="track-artist">${escapeHTML(track.artist)}</p>
+    </div>
+    <div id="player-shell" class="player-shell">
+      <div id="player-mount" class="player-mount"></div>
+      <div id="continue-cta" class="continue-cta" hidden>
+        <p>Like what you heard?</p>
+        <a class="spotify-button" href="${escapeHTML(track.spotifyUrl)}" target="_blank" rel="noopener">
+          ${SPOTIFY_LOGO_SVG}Continue on Spotify
+        </a>
       </div>
     </div>
-    <a
-      class="spotify-button"
-      href="${escapeHTML(track.spotifyUrl)}"
-      target="_blank"
-      rel="noopener"
-    >${SPOTIFY_LOGO_SVG}Open in Spotify</a>
+    <div class="action-row">
+      <button type="button" class="favorite-button" id="favorite-btn" aria-pressed="false" disabled>
+        <span class="heart" aria-hidden="true">♡</span>
+        <span class="favorite-label">Save</span>
+      </button>
+      <a class="spotify-button compact" href="${escapeHTML(track.spotifyUrl)}" target="_blank" rel="noopener">
+        ${SPOTIFY_LOGO_SVG}Open in Spotify
+      </a>
+    </div>
     <div id="notify-slot" class="notify-slot"></div>
   `;
+
+  attachPlayer(track.id);
+  $("favorite-btn").addEventListener("click", toggleFavorite);
+}
+
+async function attachPlayer(trackId) {
+  const mount = $("player-mount");
+  const cta = $("continue-cta");
+  if (!mount) return;
+  try {
+    await createPlayer({
+      trackId,
+      container: mount,
+      onEnded: () => {
+        if (cta) cta.hidden = false;
+      },
+    });
+  } catch (err) {
+    console.warn("Spotify embed failed:", err);
+    mount.innerHTML = `<p class="player-fallback">Player unavailable — use the button below to listen on Spotify.</p>`;
+  }
+}
+
+function updateFavoriteButton(isSignedIn, isFav) {
+  favorited = isFav;
+  const btn = $("favorite-btn");
+  if (!btn) return;
+  btn.disabled = !isSignedIn;
+  btn.setAttribute("aria-pressed", isFav ? "true" : "false");
+  btn.classList.toggle("is-favorited", isFav);
+  btn.querySelector(".heart").textContent = isFav ? "♥" : "♡";
+  btn.querySelector(".favorite-label").textContent = isFav ? "Saved" : "Save";
+  btn.title = isSignedIn ? "" : "Sign in to save favorites";
+}
+
+async function toggleFavorite() {
+  if (!currentEntry) return;
+  const session = await getSession();
+  if (!session) return;
+  const next = !favorited;
+  updateFavoriteButton(true, next);
+  try {
+    if (next) {
+      await recordEngagement(currentEntry.date, "favorited");
+    } else {
+      await removeEngagement(currentEntry.date, "favorited");
+    }
+  } catch (err) {
+    console.warn("Toggle favorite failed:", err);
+    updateFavoriteButton(true, !next);
+  }
+}
+
+async function refreshSessionState(session) {
+  if (!currentEntry) return;
+  if (session) {
+    const fav = await isFavorited(currentEntry.date);
+    updateFavoriteButton(true, fav);
+    recordEngagement(currentEntry.date, "opened");
+  } else {
+    updateFavoriteButton(false, false);
+  }
 }
 
 function renderNotifySlot(state) {
@@ -214,6 +297,8 @@ async function init() {
   const card = $("card");
   const historyList = $("history-list");
   const progress = $("progress");
+  const bioContainer = $("bio");
+  const authSlot = $("auth-slot");
 
   try {
     const [entries, countries] = await Promise.all([
@@ -224,9 +309,13 @@ async function init() {
     if (entries.length === 0) {
       renderEmpty(card);
     } else {
-      renderEntry(card, entries.at(-1));
+      const entry = entries.at(-1);
+      renderEntry(card, entry);
+      renderBio(bioContainer, entry.bio);
       renderHistory(historyList, entries);
       initNotifications();
+      mountAuthUI(authSlot, { onSession: refreshSessionState });
+      onAuthChange(refreshSessionState);
     }
     renderProgress(progress, entries, countries.length);
   } catch (err) {
