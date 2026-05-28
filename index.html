@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Music Explorer — A new country every day</title>
+    <meta
+      name="description"
+      content="Every day, discover a song from a new country. Random without replacement across all 195 UN nations."
+    />
+    <meta property="og:title" content="Music Explorer" />
+    <meta
+      property="og:description"
+      content="Every day, discover a song from a new country."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Music Explorer</h1>
+      <p class="tagline">A song from a new country, every day.</p>
+    </header>
+
+    <main id="main">
+      <section class="card" id="card" aria-live="polite" aria-busy="true">
+        <p class="status" id="status">Loading today's song&hellip;</p>
+      </section>
+
+      <details class="history">
+        <summary>Previous days</summary>
+        <ol id="history-list" class="history-list" reversed></ol>
+      </details>
+    </main>
+
+    <footer>
+      <p id="progress" class="progress"></p>
+      <p class="meta">
+        Discoveries powered by
+        <a href="https://www.spotify.com/" rel="noopener">Spotify</a>.
+        <a
+          href="https://github.com/tamner/music_explorer"
+          rel="noopener"
+          >Source</a
+        >.
+      </p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

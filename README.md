@@ -1,0 +1,89 @@
+# Music Explorer
+
+A daily song from a new country, every day. Random without replacement across all 195 UN nations.
+
+## How it works
+
+- A scheduled GitHub Action runs each day at 00:05 UTC.
+- It picks the next country from a deterministic shuffled sequence (`data/sequence.json`).
+- It queries the Spotify API for a track popular in that country and appends the result to `data/songs.json`.
+- A static frontend (this repo's root) reads `data/songs.json` and renders the most recent entry.
+- Deployed via GitHub Pages.
+
+## Setup
+
+### 1. Spotify credentials
+
+Create a Spotify app at <https://developer.spotify.com/dashboard>. Add two repo secrets:
+
+- `SPOTIFY_CLIENT_ID`
+- `SPOTIFY_CLIENT_SECRET`
+
+The script uses the Client Credentials flow — no user OAuth required.
+
+### 2. Enable GitHub Pages
+
+Settings → Pages → Source: **GitHub Actions**.
+
+### 3. Generate the initial sequence (one-time)
+
+```sh
+node scripts/generate-sequence.mjs
+git add data/sequence.json
+git commit -m "Bootstrap country sequence"
+```
+
+A custom integer seed can be passed: `node scripts/generate-sequence.mjs 12345`.
+
+### 4. Run the fetcher locally (optional)
+
+```sh
+export SPOTIFY_CLIENT_ID=...
+export SPOTIFY_CLIENT_SECRET=...
+node scripts/fetch-daily-song.mjs
+```
+
+To backfill for a specific UTC date: `FORCE_DATE=2026-05-29 node scripts/fetch-daily-song.mjs`.
+
+## Repository layout
+
+```
+index.html, styles.css, app.js     Static frontend
+data/countries.json                195 UN countries (iso, name, flag)
+data/country-seeds.json            Curated artist seeds per country
+data/sequence.json                 Shuffled order (the "without replacement" list)
+data/songs.json                    Append-only history of daily picks
+scripts/generate-sequence.mjs      Bootstrap / regenerate the shuffle
+scripts/fetch-daily-song.mjs       Daily worker (called by the Action)
+scripts/lib/prng.mjs               Seeded PRNG + Fisher-Yates shuffle
+.github/workflows/daily-song.yml   Scheduled fetch
+.github/workflows/deploy.yml       Pages deploy
+```
+
+## Adding or improving country seeds
+
+Edit `data/country-seeds.json`. Each entry can include:
+
+- `artistIds` — Spotify artist IDs; the fetcher pulls each artist's top tracks in the country's market.
+- `fallbackQuery` — used when artist lookups return nothing (`/search?q=…&market=<iso>`).
+- `marketOverride` — for countries Spotify doesn't serve (KP, IR, etc.), substitute a neighboring market.
+
+Unmapped countries are fine: the fetcher falls back to a generic year-range search in that market.
+
+## Why pick "most recent" instead of "today's date"?
+
+The frontend renders `entries.at(-1)`, not the entry whose `date` matches today. This:
+
+- Stays correct if the Action runs late or fails (yesterday's song remains visible).
+- Avoids client-side timezone math entirely.
+
+## Out of scope (v1)
+
+- Per-user randomness
+- Embedded Spotify player
+- Multiple songs per day
+- Account features
+
+## License
+
+MIT

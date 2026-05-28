@@ -1,0 +1,258 @@
+:root {
+  --bg: #0f1116;
+  --bg-elev: #1a1d27;
+  --fg: #f5f6fa;
+  --fg-muted: #9aa0b4;
+  --accent: #1db954;
+  --accent-hover: #1ed760;
+  --border: #2a2f3d;
+  --radius: 16px;
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font);
+  background: radial-gradient(circle at 20% 0%, #1c2230 0%, var(--bg) 60%);
+  color: var(--fg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.5;
+}
+
+header {
+  text-align: center;
+  padding: 3rem 1.5rem 1.5rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  color: var(--fg-muted);
+  font-size: 1.05rem;
+}
+
+main {
+  flex: 1;
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 2rem;
+}
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  box-shadow: var(--shadow);
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.status {
+  margin: 0;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.country-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.country-flag {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.country-name {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.day-label {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.track {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.album-art {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #000;
+  flex-shrink: 0;
+}
+
+.track-info {
+  min-width: 0;
+}
+
+.track-name {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist {
+  margin: 0;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotify-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: #000;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  transition: background 0.15s ease;
+  align-self: flex-start;
+}
+
+.spotify-button:hover,
+.spotify-button:focus-visible {
+  background: var(--accent-hover);
+  outline: none;
+}
+
+.spotify-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.4);
+}
+
+.spotify-logo {
+  width: 18px;
+  height: 18px;
+}
+
+.history {
+  margin-top: 2rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+}
+
+.history summary {
+  cursor: pointer;
+  padding: 0.75rem 0;
+  font-weight: 600;
+  color: var(--fg-muted);
+  list-style: none;
+}
+
+.history summary::-webkit-details-marker {
+  display: none;
+}
+
+.history[open] summary {
+  color: var(--fg);
+}
+
+.history-list {
+  margin: 0;
+  padding: 0 0 0.75rem 1.25rem;
+}
+
+.history-list li {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.history-list li:first-child {
+  border-top: none;
+}
+
+.history-list a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.history-list a:hover {
+  color: var(--accent-hover);
+}
+
+.history-flag {
+  margin-right: 0.4rem;
+}
+
+.history-meta {
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+}
+
+footer a {
+  color: var(--fg-muted);
+}
+
+footer a:hover {
+  color: var(--fg);
+}
+
+.progress {
+  margin: 0 0 0.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    animation: fade-in 0.4s ease-out;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
