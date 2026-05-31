@@ -71,12 +71,20 @@ async function getAccessToken() {
   return body.access_token;
 }
 
+async function logFailure(label, res) {
+  let body = "";
+  try {
+    body = (await res.text()).slice(0, 300);
+  } catch {}
+  console.warn(`${label} -> ${res.status} ${res.statusText} ${body}`);
+}
+
 async function getMarkets(token) {
   const res = await fetchWithRetry(`${API_BASE}/markets`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    console.warn(`Could not fetch markets list (${res.status}); skipping check`);
+    await logFailure("GET /markets", res);
     return null;
   }
   const body = await res.json();
@@ -88,24 +96,38 @@ async function getArtistTopTracks(token, artistId, market) {
     `${API_BASE}/artists/${artistId}/top-tracks?market=${market}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
-  if (!res.ok) return [];
+  if (!res.ok) {
+    await logFailure(`GET /artists/${artistId}/top-tracks?market=${market}`, res);
+    return [];
+  }
   const body = await res.json();
   return body.tracks ?? [];
 }
 
 async function searchTracks(token, query, market, limit = 50) {
-  const params = new URLSearchParams({
-    q: query,
-    type: "track",
-    market,
-    limit: String(limit),
-  });
+  const params = new URLSearchParams({ q: query, type: "track", limit: String(limit) });
+  if (market) params.set("market", market);
   const res = await fetchWithRetry(`${API_BASE}/search?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    await logFailure(`GET /search?q=${query}&market=${market ?? "any"}`, res);
+    return [];
+  }
   const body = await res.json();
   return body.tracks?.items ?? [];
+}
+
+async function getArtistName(token, artistId) {
+  const res = await fetchWithRetry(`${API_BASE}/artists/${artistId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    await logFailure(`GET /artists/${artistId}`, res);
+    return null;
+  }
+  const body = await res.json();
+  return body.name ?? null;
 }
 
 function pickDeterministic(candidates, seedString) {
@@ -127,7 +149,7 @@ function dedupe(tracks) {
   return out;
 }
 
-async function findTrackForCountry(token, iso, seed, date, markets) {
+async function findTrackForCountry(token, iso, seed, date, markets, country) {
   const seedEntry = seed[iso] ?? {};
   const market =
     seedEntry.marketOverride && (!markets || markets.has(seedEntry.marketOverride))
@@ -136,34 +158,72 @@ async function findTrackForCountry(token, iso, seed, date, markets) {
         ? null
         : iso;
 
-  if (!market) {
-    console.warn(`Country ${iso} not a Spotify market and no override; skipping`);
-    return null;
-  }
+  const attempts = [];
+  const record = (label, count) => {
+    attempts.push(`${label}=${count}`);
+    if (count > 0) console.log(`  ✓ ${label}: ${count} candidates`);
+    else console.log(`  · ${label}: 0`);
+  };
 
   let candidates = [];
 
-  if (Array.isArray(seedEntry.artistIds) && seedEntry.artistIds.length > 0) {
+  if (market) {
+    if (Array.isArray(seedEntry.artistIds) && seedEntry.artistIds.length > 0) {
+      for (const artistId of seedEntry.artistIds) {
+        const tracks = await getArtistTopTracks(token, artistId, market);
+        candidates.push(...tracks);
+      }
+      candidates = dedupe(candidates);
+      record(`artist-top-tracks[${market}]`, candidates.length);
+    }
+
+    if (candidates.length === 0) {
+      candidates = await searchTracks(token, "year:2022-2026", market, 50);
+      record(`search-year-range[${market}]`, candidates.length);
+    }
+
+    if (candidates.length === 0 && seedEntry.fallbackQuery) {
+      candidates = await searchTracks(token, seedEntry.fallbackQuery, market, 50);
+      record(`search-fallback-query[${market}]`, candidates.length);
+    }
+
+    if (candidates.length === 0) {
+      candidates = await searchTracks(token, "popular", market, 50);
+      record(`search-popular[${market}]`, candidates.length);
+    }
+  } else {
+    console.warn(`Country ${iso} not a Spotify market and no override; trying worldwide`);
+  }
+
+  if (candidates.length === 0) {
+    const q = seedEntry.fallbackQuery || `${country?.name ?? iso} music`;
+    candidates = await searchTracks(token, q, null, 50);
+    record(`search-worldwide[${q}]`, candidates.length);
+  }
+
+  if (candidates.length === 0 && Array.isArray(seedEntry.artistIds)) {
     for (const artistId of seedEntry.artistIds) {
-      const tracks = await getArtistTopTracks(token, artistId, market);
+      const tracks = await getArtistTopTracks(token, artistId, "US");
       candidates.push(...tracks);
     }
     candidates = dedupe(candidates);
+    record(`artist-top-tracks[US-fallback]`, candidates.length);
+  }
+
+  if (candidates.length === 0 && Array.isArray(seedEntry.artistIds) && seedEntry.artistIds[0]) {
+    const name = await getArtistName(token, seedEntry.artistIds[0]);
+    if (name) {
+      candidates = await searchTracks(token, `artist:"${name}"`, "US", 50);
+      record(`search-artist-name[US-fallback,${name}]`, candidates.length);
+    }
   }
 
   if (candidates.length === 0) {
-    candidates = await searchTracks(token, "year:2022-2026", market, 50);
+    const err = new Error(
+      `No track found for ${iso} (${country?.name ?? "?"}). Attempts: ${attempts.join(", ")}`,
+    );
+    throw err;
   }
-
-  if (candidates.length === 0 && seedEntry.fallbackQuery) {
-    candidates = await searchTracks(token, seedEntry.fallbackQuery, market, 50);
-  }
-
-  if (candidates.length === 0) {
-    candidates = await searchTracks(token, "popular", market, 50);
-  }
-
-  if (candidates.length === 0) return null;
 
   return pickDeterministic(candidates, `${date}|${iso}`);
 }
@@ -206,11 +266,7 @@ async function main() {
 
   const token = await getAccessToken();
   const markets = await getMarkets(token);
-  const track = await findTrackForCountry(token, iso, seeds, date, markets);
-
-  if (!track) {
-    throw new Error(`No track found for ${iso} (${country.name})`);
-  }
+  const track = await findTrackForCountry(token, iso, seeds, date, markets, country);
 
   const primaryArtist = track.artists?.[0]?.name ?? "";
   const bio = await fetchBio(primaryArtist, track.name);
